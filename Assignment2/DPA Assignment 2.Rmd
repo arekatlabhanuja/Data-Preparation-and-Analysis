@@ -1,0 +1,181 @@
+---
+title: "Assignment 2"
+author: "Bhanuja Arekatla"
+date:"9/30/2020"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    df_print: paged
+---
+##QUESTION 1
+#1.1Loading the data 
+
+```{r}
+#install.packages('MASS')
+#library(MASS)
+data("Boston")
+summary(Boston)
+head(Boston)
+```
+#1.2 Fit a Regression between medv and lstat
+```{r}
+
+linear.reg=lm(medv~lstat,data=Boston)
+summary(linear.reg)
+plot(Boston$medv,Boston$lstat)
+abline(linear.reg,lwd=4)
+par(mfrow=c(1,1))
+plot(linear.reg,which=1)
+
+
+```
+We generally plot residual vs fitted values in order to find the non-linearity of data.If there is any sort of pattern show by residuals then we can say that the data is non-linear.So, we can observe that the data is non-linear on the basis of residuals.
+
+#1.3 Confidence Intervals and Prediction intervals for lstat
+```{r}
+new.values=data.frame(lstat=c(5,10,15))
+print("Prediction Intervals")
+predict(linear.reg,new.values,interval="prediction")
+print("Confidence Intervals")
+predict(linear.reg,new.values,interval="confidence")
+```
+From the above data, we can observe that values of "fit" is same for prediction intervals and confidence intervals.But we can see that the range is wider for prediction interval than confidence interval.Prediction interval is used to predict the next value which will lie in the range above.There is a chance that 95% the value we predicted is in that range.We would have to calculate the standard error while prediction, so the range is wider.While for confidence intervals there is 95% chance that the population mean is in the above range.We don't need a wider range for aggregate values,so the range is not much wider.
+
+#1.4 Modify Regression to lstat^2
+```{r}
+updated.values=lm(medv~lstat+I(lstat^2),data=Boston)
+summary(updated.values)
+par(mfrow=c(1,1))
+plot(updated.values)
+```
+```{r}
+anova(linear.reg,updated.values)
+```
+We can observe that from the linear and non-linear models,there is increase in percentage from 54% to 64% for the value of R^2.There is a 10% increase where the performance of the model has been improved for higher polynomial degree in the model.
+```{r}
+library(ggplot2)
+plot<-ggplot(data=Boston,aes(x=lstat,y=medv))+stat_smooth(formula=y~x,col='red',method=lm)+geom_point()
+plot
+plot1<-ggplot(data=Boston,aes(x=lstat,y=medv))+stat_smooth(formula=y~x+I(x^2),method=lm)+geom_point()
+plot1
+```
+
+#QUESTION 2
+#2.1 Loading abalone sample dataset.
+```{r}
+abalone.data<-read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/abalone/abalone.data",
+col.names=c("Sex","Length","Diameter","Height","Whole Weight","Shucked weight","Viscera Weight","Shell weight","Rings"))
+summary(abalone.data)
+head(abalone.data)
+```
+#2.2 Removing "Infact" category from the dataset
+```{r}
+new.data<-abalone.data[which(abalone.data$Sex!='I'),]
+new.data$Sex<-factor(new.data$Sex)
+str(new.data)
+head(new.data)
+```
+#2.3 Partitioning the dataset where 80% is training data and 20% is testing data.
+```{r}
+#install.packages("caret")
+#library(caret)
+data.partition <- createDataPartition(new.data$Sex, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+Traindata<-new.data[data.partition,]
+Testdata<-new.data[-data.partition,]
+
+```
+#2.4  logistic regression model
+```{r}
+plot<-glm(Sex~.,data = Traindata,family=binomial)
+plot
+```
+```{r}
+summary(plot)
+```
+Generally, if the p-value is <0.05 then we can say that it is statistically significant and null hypothesis can be rejected for such attributes.The p values in increasing order of attributes are Shucked weight,Viscera weight and Diameter.They are all in the range and relevant to response attributes .So we can conclude that for all the remaining attributes,they have high p-values and null hypothesis is true for all of them.
+
+#2.5 Confidence Intervals for the predictors
+```{r}
+confint(plot)
+```
+We can observe that except "Shucked weight" and "Height" all the remaining values are in the range of 0.Therefore,null hypothesis is true for all the attributes except Shucked weight and Height.This also concludes that these attributes have less effect on the response attribute.
+
+#Predicting the test value
+
+```{r}
+testvalues<-predict(plot,Testdata,type="response")
+#If p exceeds threshold of 0.5,M else F
+m.f<-ifelse(testvalues>0.5,"M","F")
+m.f<-factor(m.f)
+str(m.f)
+```
+#Confusion Matrix
+```{r}
+confusionMatrix(Testdata$Sex,m.f)
+```
+We can observe that accuracy is 55% for the above model.
+```{r}
+prediction=prediction(testvalues,Testdata$Sex)
+performance=performance(prediction,measure="tpr",x.measure="fpr")
+plot(performance)
+abline(0,1)
+```
+The accuracy of the model is 0.55 while random classifier model helps to make the model performance better. 
+```{r}
+library(corrplot)
+corr<-cor(new.data[-1])
+corrplot(corr,method="color")
+```
+We can observe that there is a positive correlation between the predictors and this may affect the performance of the model.Hence we say that all predictors are not used in order to predict the response.
+
+#QUESTION 3
+```{r}
+agaricus.data <- read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepiota.data",col.names= c("Class","cap-shape","cap-surface","cap-color","bruises","odor","gillattachment","gill-spacing","gill-size","gill-color","stalk-shape","stalk-root","stalk-surface-abovering","stalk-surface-below-ring","stalk-color-above-ring","stalk-color-below-ring","veil-type","veilcolor","ring-number","ring-type","spore-print-color","population","habitat"))
+
+summary(agaricus.data)
+str(agaricus.data)
+```
+We have a missing value '?' for stalk root.We may keep it and continue with the classification models.We can even drop the corresponding level and recode as missing with the value. 
+#Splitting the data
+```{r}
+agaricus.data<-agaricus.data[which(agaricus.data$'stalk.root'!="?"),]
+nrow(agaricus.data)
+```
+We perform data cleaning by removing all the rows which contains the missing values.This will help to remove the performance of the model.
+
+#Splitting the data
+```{r}
+#install.packages("caTools")
+library(caTools)
+agaricus.data$Class=factor(agaricus.data$Class)
+split_data=sample.split(agaricus.data,SplitRatio=0.8)
+train_data=subset(agaricus.data,split_data=TRUE)
+test_data=subset(agaricus.data,split_data==FALSE)
+```
+
+#Fitting the model using Naive Bayes classifier
+```{r}
+library(e1071)
+naivebayes<-naiveBayes(train_data[-1],train_data$Class)
+naive_testdata<-predict(naivebayes,test_data[,-1])
+naive_traindata<-predict(naivebayes,train_data[,-1])
+```
+#Accuracy calculation for training data and testing data
+```{r}
+mean(naive_testdata==test_data$Class)
+print("Accuracy of Testing data")
+mean(naive_traindata==train_data$Class)
+print("Accuracy of training data")
+
+```
+#Confusion matrix
+```{r}
+print("Confusion matrix for Testing data")
+table(naive_testdata,test_data$Class)
+print("Confusion matrix for Training data")
+table(naive_traindata,train_data$Class)
+```
+Model consists of 247 false positives for training data and 45 false positives for testing data.
