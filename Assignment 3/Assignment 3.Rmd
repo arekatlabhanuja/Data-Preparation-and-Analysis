@@ -1,0 +1,329 @@
+---
+title: "DPA Assignment-3"
+author: "Bhanuja Arekatla"
+date: "10/15/2020"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    df_print: paged
+---
+Question 1
+Loading the data
+```{r}
+library(data.table)
+data="http://archive.ics.uci.edu/ml/machine-learning-databases/00243/yacht_hydrodynamics.data"
+yatch_data=fread(data)
+colnames(yatch_data)<-c("Longitudinal_position","Prismatic_coefficient","Length-displacement","Beam_drought","Length_beam","Froude_number","Residuary_resistance")
+summary(yatch_data)
+head(yatch_data)
+```
+Splitting of data
+```{r}
+#install.packages("caret")
+#library(caret)
+set.seed(2150)
+train_index<-createDataPartition(yatch_data$Residuary_resistance,p=0.8,list=FALSE,times=1)
+train_data<-yatch_data[train_index,]
+test_data<-yatch_data[-train_index,]
+train_data
+```
+Fitting the model
+```{r}
+lm_fit=lm(Residuary_resistance~.,data=train_data)
+summary(lm_fit)
+```
+Calculating training MSE and RMSE
+```{r}
+mse<-mean((train_data$Residuary_resistance-predict(lm_fit,train_data))^2)
+print("MSE:")
+print(mse)
+rmse<-sqrt(mse)
+print("RMSE:")
+print(rmse)
+```
+```{r}
+#Calculating R2 value
+rss<-sum((train_data$Residuary_resistance-predict(lm_fit,train_data))^2)
+tss<-sum((train_data$Residuary_resistance-mean(train_data$Residuary_resistance))^2)
+r2<-1-(rss/tss)
+r2
+```
+Performing bootstrap using traincontrol method
+```{r}
+boot<-trainControl(method="boot",number=1000)
+fit_model<-train(Residuary_resistance~.,method="lm",data=train_data,trControl=boot,na.action = na.pass)
+fit_model
+```
+#Histogram of RMSE values
+```{r}
+hist(fit_model$resample$RMSE,main="Histogram of RMSE",xlab="Values of RMSE")
+```
+#Calculating Training MSE and Training RMSE
+```{r}
+print("Training MSE")
+(mean(fit_model[["resample"]][["RMSE"]]))^2
+print("Training RMSE")
+mean(fit_model[["resample"]][["RMSE"]])
+print("R2 value")
+mean(fit_model[["resample"]][["Rsquared"]])
+```
+Linear model and bootstrap model have similar RMSE and MSE.
+
+#Linear model on Test data
+#Calculating Testing MSE
+```{r}
+test_mse<-mean((test_data$Residuary_resistance-predict(lm_fit,test_data))^2)
+test_mse
+```
+#Calculating Testing RMSE
+```{r}
+test_rmse<-sqrt(test_mse)
+test_rmse
+```
+#Calculating Testing R2
+```{r}
+rss<-sum((test_data$Residuary_resistance-predict(lm_fit,test_data))^2)
+tss<-sum((test_data$Residuary_resistance-mean(test_data$Residuary_resistance))^2)
+r2<-1-(rss/tss)
+r2
+```
+#Bootstrap on Test Data
+#Calculating Testing MSE
+```{r}
+test_mse1<-mean((test_data$Residuary_resistance-predict(fit_model,test_data))^2)
+test_mse1
+```
+#Calculating Testing RMSE
+```{r}
+test_rmse1<-sqrt(test_mse1)
+test_rmse1
+```
+#Calculating Test R2
+```{r}
+rss<-sum((test_data$Residuary_resistance-predict(fit_model,test_data))^2)
+tss<-sum((test_data$Residuary_resistance-mean(test_data$Residuary_resistance))^2)
+r2<-1-(rss/tss)
+r2
+```
+The perfromance is based on RMSE.The linear model and the bootstrap model have same RMSE.The values which are predicted from bootstrap model is same as the values which are predicted from linear model.
+
+Question 2
+#Load the German credit data
+```{r}
+german_data=read.table("https://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/german.data-numeric",,sep='')
+summary(german_data)
+head(german_data)
+```
+#Splitting the data
+```{r}
+#install.packages("caret")
+#library(caret)
+set.seed(215)
+index<-createDataPartition(german_data$V25,p=0.8,list=FALSE,times=1)
+german_data$V25<-factor(german_data$V25)
+train_data=german_data[index,]
+test_data<-german_data[-index,]
+train_data
+```
+#Fitting a logistic model
+```{r}
+Logistic_model<-glm(formula=V25~.,data=train_data,family = "binomial")
+summary(Logistic_model)
+```
+#Training Precision,Recall and F1 results.
+```{r}
+library(caret)
+prob_train<-predict(Logistic_model,train_data,type="response")
+pred<-ifelse(prob_train>0.5,2,1)
+precision<-posPredValue(as.factor(pred),train_data$V25,positive = "1")
+print("Precision:")
+print(precision)
+recall<-sensitivity(as.factor(pred),train_data$V25,positive = "1")
+print("Recall:")
+print(recall)
+F1<-(2*precision*recall)/(precision + recall)
+print("F1 Score")
+print(F1)
+```
+#Train Control and train functions to perform k=10 fold cross validation.
+```{r}
+cross_validation<-trainControl(method="cv",number=10,savePredictions = TRUE)
+model<-train(V25~.,data=train_data,trControl=cross_validation,method="glm")
+model$resample
+```
+#Cross Validation Precision,Recall and F1 for Train
+```{r}
+prob_train_cv<-predict(model,train_data,type="prob")
+pred_cv<-ifelse(prob_train_cv[2]>0.5,2,1)
+precision_cv<-posPredValue(as.factor(pred_cv),train_data$V25,positive = "1")
+print("Precision:")
+print(precision)
+recall<-sensitivity(as.factor(pred_cv),train_data$V25,positive = "1")
+print("Recall:")
+print(recall)
+F1<-(2*precision*recall)/(precision + recall)
+print("F1 Score")
+print(F1)
+```
+#Test Precision,Recall and F1 score
+```{r}
+prob_test<-predict(Logistic_model,test_data,type="response")
+pred_test<-ifelse(prob_test>0.5,2,1)
+precision_test<-posPredValue(as.factor(pred_test),test_data$V25,positive = "1")
+print("Precision:")
+print(precision)
+recall<-sensitivity(as.factor(pred_test),test_data$V25,positive = "1")
+print("Recall:")
+print(recall)
+F1<-(2*precision*recall)/(precision + recall)
+print("F1 Score")
+print(F1)
+```
+#Cross Validation for Precision,Recall and F1 for test
+```{r}
+prob_test_cv<-predict(model,test_data,type="prob")
+pred_test_cv<-ifelse(prob_test_cv[2]>0.5,2,1)
+precision_cv<-posPredValue(as.factor(pred_test_cv),test_data$V25,positive = "1")
+print("Precision:")
+print(precision)
+recall<-sensitivity(as.factor(pred_test_cv),test_data$V25,positive = "1")
+print("Recall:")
+print(recall)
+F1<-(2*precision*recall)/(precision + recall)
+print("F1 Score")
+print(F1)
+```
+We can observe that precision and recall is same for training logistic regression and training cross validation.The performance of the model can be analyzed by the F1 result.The F1 result is same for logistic regression and cross validation on the test set.
+
+#Question 3
+#Loading the data
+```{r}
+data("mtcars")
+head(mtcars)
+```
+#Splitting of data
+```{r}
+index_cars<-createDataPartition(mtcars$mpg,p=0.8,list=F,times=1)
+train_cars<-mtcars[index_cars,]
+test_cars<-mtcars[-index_cars,]
+```
+# Setting Dummy variable for am
+
+```{r}
+dummy_am=factor(mtcars$am)
+contrasts(dummy_am)
+```
+
+#Fitting a linear model
+```{r}
+lm_model<-lm(mpg~.,data=train_cars)
+mean((predict(lm_model,test_cars)-test_cars$mpg)^2)
+summary(lm_model)
+```
+We can observe that wt is the relevant feature from the all the above attributes.
+#COefficient value of wt
+```{r}
+summary(lm(mpg~wt,data=train_cars))
+```
+We can observe that wt is the relevant feature.The associated coefficient value of wt is -5.9635.
+Ridge Regression
+```{r}
+#Getting the independent and dependent variable
+install.packages("glmnet")
+library(glmnet)
+x<-model.matrix(mpg~.,train_cars)[,-1]
+y<-train_cars$mpg
+seq_lambda<-10^seq(5,-5,by=-.1)
+ridge<-cv.glmnet(x,y,alpha=0,lambda = seq_lambda,parallel = TRUE,grouped=F,nlambda=100)
+plot(ridge)
+```
+#Minimum lambda value
+```{r}
+min_lambda<-ridge$lambda.min
+min_lambda
+```
+#To build ridge regression model using glmnet function
+```{r}
+fit_model<-glmnet(x,y,alpha = 0,lambda=min_lambda)
+summary(fit_model)
+```
+#For test data set
+```{r}
+x1<-model.matrix(mpg~.,test_cars)[,-1]
+predict_model<-predict(fit_model,s =,newx = x1,type="response")
+#mse using ridge
+mean((predict_model-test_cars$mpg)^2)
+
+```
+MSE on test data decreases by performing Ridge regression.
+#Coefficient of glm model
+```{r}
+coef(lm_model)
+```
+#Coefficient of ridge regression model
+```{r}
+coef(ridge,s="lambda.min")
+```
+We can observe that "wt" feature which is the most relevant feature for linear model is showing a shrinkage for ridge regression model.Therefore,we can say that overall model is showing a shrinkage.
+#Question 4
+```{r}
+data(swiss)
+head(swiss)
+```
+#Splitting of data
+```{r}
+set.seed(1000)
+index_swiss<-createDataPartition(swiss$Fertility,p=0.8,list=F,times=1)
+train_swiss<-swiss[index_swiss,]
+test_swiss<-swiss[-index_swiss,]
+```
+#Fitting a Linear model
+```{r}
+swiss_model<-lm(Fertility~.,data=train_swiss)
+summary(swiss_model)
+```
+Based on the p-values,Agriculture,Education,Catholic and Infant.Mortality are relevant features.
+
+#Calculation of test MSE for Linear model
+```{r}
+mean((test_swiss$Fertility-predict(swiss_model,test_swiss))^2)
+```
+#Lasso Regression using glmnet
+```{r}
+#library(Matrix)
+#library(foreach)
+#library(glmnet)
+x<-model.matrix(Fertility~.,train_swiss)[,-1]
+y<-train_swiss$Fertility
+seq_lambda<-10^seq(5,-5,by=-.1)
+lasso<-cv.glmnet(x,y,alpha=1,lambda = seq_lambda,parallel = TRUE,grouped=F,nlambda=100)
+plot(ridge)
+```
+#Minimum lambda value
+```{r}
+min_lambda<-lasso$lambda.min
+min_lambda
+```
+#To build lasso model using glmnet function
+```{r}
+fit_model<-glmnet(x,y,alpha = 0,lambda=min_lambda)
+summary(fit_model)
+```
+#For test data set
+```{r}
+x1<-model.matrix(Fertility~.,test_swiss)[,-1]
+predict_model<-predict(fit_model,s =,newx = x1,type="response")
+#mse 
+mean((predict_model-test_swiss$Fertility)^2)
+```
+#Coefficient of lm model
+```{r}
+coef(swiss_model)
+```
+#Coefficient of lasso model
+```{r}
+coef(lasso)
+```
+The test set performance of lasso regression is almost similar to linear model.
+Lasso regression model has a shrinkage than linear model.
